@@ -77,3 +77,25 @@ GET /api/report?runId=...&format=json|csv|pdf → 파일 스트리밍
 - GET /api/findings?runId=... → 전체 결과 JSON
 - GET /api/report?runId=...&format=json|csv|pdf → 파일 다운로드
 - (선택) GET /api/run/:id/status → 진행상황(큐/퍼센트)
+
+---
+
+- POST /api/guidelines
+```req: { "runId": "sample-001", "selection": ["F-001","F-002","F-003","F-005"] }
+
+res:
+
+{
+  "runId": "sample-001",
+  "pdfUrl": "https://.../forti-guides-sample-001.pdf",
+  "guidelines": [
+    {
+      "findingId": "F-001",
+      "title": "SQL Injection via concatenated query",
+      "cwe": "CWE-89",
+      "howToFix": "…",
+      "codeExample": "…",
+      "references": ["https://…"]
+    }
+  ]
+}```
