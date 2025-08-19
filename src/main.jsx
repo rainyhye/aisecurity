@@ -8,6 +8,7 @@ import DashboardLayout from "./pages/DashboardLayout.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Introduction from "./pages/Introduction.jsx";
 import Method from "./pages/Method.jsx";
+import Findings from "./pages/Findings.jsx";
 
 const router = createBrowserRouter([
   {
@@ -21,6 +22,7 @@ const router = createBrowserRouter([
           { index: true, element: <Dashboard /> }, // /app
           { path: "introduction", element: <Introduction /> }, // /app/introduction
           { path: "method", element: <Method /> }, // /app/method
+          { path: "findings", element: <Findings /> }, // /app/findings
         ],
       },
     ],
