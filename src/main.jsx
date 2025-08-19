@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import Introduction from "./pages/Introduction.jsx";
 import Method from "./pages/Method.jsx";
 import Findings from "./pages/Findings.jsx";
+import { ThemeProvider } from "./components/ThemeProvider.jsx";
 
 const router = createBrowserRouter([
   {
@@ -31,6 +32,8 @@ const router = createBrowserRouter([
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+      <RouterProvider router={router} />
+    </ThemeProvider>
   </React.StrictMode>
 );

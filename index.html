@@ -1,14 +1,6 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
-  <script>
-(()=>{try{
-  const saved=localStorage.getItem('theme');
-  const sys=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const theme=saved||(sys?'dark':'light');
-  document.documentElement.classList.toggle('dark',theme==='dark');
-}catch(e){}})();
-</script>
-  <body class="bg-white text-zinc-900 dark:!bg-zinc-950 dark:text-white">
+  <body class="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
