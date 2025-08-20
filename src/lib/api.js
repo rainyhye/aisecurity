@@ -34,3 +34,26 @@ export function fetchReportListJSON(projectKey) {
 export function fetchUnifiedJSON(projectKey, file = "unified_report.json") {
   return postJson(API.unified, { project: projectKey, file });
 }
+
+// src/lib/api.js
+export async function fetchSecureCode(projectKey) {
+  const API_BASE = import.meta?.env?.VITE_API_BASE || "";
+  const url = `${API_BASE}/analysis/${projectKey}/secure_code?cacheBust=${Date.now()}`;
+  const res = await fetch(url, { method: "GET", cache: "no-store" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) {
+    const j = await res.json();
+    // 서버 스키마 불확실 → 흔한 필드 우선 사용, 없으면 전체 JSON을 문자열로
+    return (
+      j.patched ||
+      j.code ||
+      j.text ||
+      j.suggestion ||
+      j.secure_code ||
+      JSON.stringify(j, null, 2)
+    );
+  }
+  return await res.text(); // text/plain 지원
+}
