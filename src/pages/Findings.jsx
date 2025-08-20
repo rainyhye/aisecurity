@@ -79,9 +79,9 @@ export default function Findings() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((f) => (
+            {rows.map((f, idx) => (
               <tr
-                key={f.id}
+                key={`${f.id || "row"}-${idx}`}
                 className="border-t border-zinc-200 dark:border-white/10"
               >
                 <td className="p-3">

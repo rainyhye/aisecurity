@@ -2,7 +2,7 @@
 // npm i recharts
 // npm i @monaco-editor/react
 
-import { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 import Editor from "@monaco-editor/react";
 import {
   PieChart,
@@ -139,7 +139,8 @@ export default function Dashboard() {
     JSON.parse(localStorage.getItem("forti:runs") || "[]")
   );
   const [selectedRunId, setSelectedRunId] = useState("");
-
+  //추가 setIsAnalyzing
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   // 입력/결과/패치 상태
   const [fileName, setFileName] = useState("선택된 파일 없음");
   const [fileObj, setFileObj] = useState(null);
@@ -282,17 +283,15 @@ export default function Dashboard() {
   }
 
   function saveRun(run) {
-    const entry = {
-      id: run.runId || `run-${Date.now()}`,
-      at: Date.now(),
-      counts: run.counts,
-    };
+    const at = Date.now();
+    const id = `${run.runId || "run"}-${at}`; // ← 고유 ID
+    const entry = { id, at, counts: run.counts };
     const arr = [
       entry,
       ...JSON.parse(localStorage.getItem("forti:runs") || "[]"),
     ].slice(0, 20);
     localStorage.setItem("forti:runs", JSON.stringify(arr));
-    localStorage.setItem(`forti:run:${entry.id}`, JSON.stringify(run));
+    localStorage.setItem(`forti:run:${id}`, JSON.stringify(run)); // ← 저장 키도 고유
     setRuns(arr);
   }
 
@@ -433,8 +432,8 @@ export default function Dashboard() {
             className="px-3 py-2 rounded-xl border bg-white dark:bg-zinc-900"
           >
             <option value="">최근 실행 불러오기…</option>
-            {runs.map((r) => (
-              <option key={r.id} value={r.id}>
+            {runs.map((r, i) => (
+              <option key={`${r.id}-${r.at ?? i}`} value={r.id}>
                 {new Date(r.at).toLocaleString()} • T{r.counts?.total ?? 0} / C
                 {r.counts?.bySeverity?.Critical ?? 0}
               </option>
