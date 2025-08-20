@@ -17,6 +17,10 @@ import {
   YAxis,
   CartesianGrid,
 } from "recharts";
+import {
+  parseUnifiedFromUrl,
+  parseUnifiedFromFile,
+} from "../lib/unifiedParser";
 
 // -------------------- 샘플 데이터 --------------------
 const SAMPLE = {
@@ -193,7 +197,12 @@ export default function Dashboard() {
 
   const toolCount = useMemo(() => {
     if (!result?.findings?.length) return 0;
-    return new Set(result.findings.map((f) => f.tool).filter(Boolean)).size;
+    const set = new Set();
+    for (const f of result.findings) {
+      const arr = f.tools?.length ? f.tools : f.tool ? [f.tool] : [];
+      arr.forEach((t) => set.add(t));
+    }
+    return set.size;
   }, [result]);
 
   // 유형 × 중요도 스택 막대
@@ -201,9 +210,10 @@ export default function Dashboard() {
     if (!result?.findings) return [];
     const map = {};
     result.findings.forEach((f) => {
-      if (!map[f.type])
-        map[f.type] = { type: f.type, Critical: 0, High: 0, Medium: 0, Low: 0 };
-      map[f.type][f.severity] = (map[f.type][f.severity] || 0) + 1;
+      const key = f.cwe || f.ruleIds?.[0] || f.type; // CWE > Rule > STATIC/DYNAMIC
+      if (!map[key])
+        map[key] = { type: key, Critical: 0, High: 0, Medium: 0, Low: 0 };
+      map[key][f.severity] = (map[key][f.severity] || 0) + 1;
     });
     return Object.values(map).sort(
       (a, b) => b.Critical + b.High - (a.Critical + a.High)
@@ -251,22 +261,24 @@ export default function Dashboard() {
     setFileObj(f);
     setFileName(f.name);
   }
-
+  //fetch -> res.json() -> normalizeUnified(...) 부분 교체
   async function handleAnalyze() {
-    // TODO: 실제 API 연결 (취약점 탐지)
-    // const form = new FormData();
-    // if (fileObj) form.append("file", fileObj);
-    // if (code.trim()) form.append("code", new Blob([code], { type: "text/plain" }), "paste.txt");
-    // const res = await fetch("/api/detect-vulns", { method: "POST", body: form });
-    // const json = await res.json();
-    // setResult(json);
+    setIsAnalyzing(true);
+    try {
+      const url = import.meta.env.VITE_UNIFIED_URL || "/api/unified";
+      const normalized = await parseUnifiedFromUrl(url);
 
-    // 데모용
-    setResult(SAMPLE);
-    localStorage.setItem("forti:last-run", JSON.stringify(SAMPLE));
-    setGuides(null);
-    setPatched("");
-    saveRun(SAMPLE);
+      setResult(normalized);
+      localStorage.setItem("forti:last-run", JSON.stringify(normalized));
+      setGuides(null);
+      setPatched("");
+      saveRun(normalized);
+    } catch (e) {
+      console.error(e);
+      alert("분석 결과(JSON) 불러오기에 실패했어요. 콘솔을 확인해 주세요.");
+    } finally {
+      setIsAnalyzing(false);
+    }
   }
 
   function saveRun(run) {

@@ -43,28 +43,28 @@ const LANGUAGES = [
 
 const TEAM = [
   {
-    name: "Member 1",
-    role: "Security Engineer",
-    github: "https://github.com/your-id-1",
-    avatar: "",
-  },
-  {
-    name: "Member 2",
-    role: "Backend Engineer",
-    github: "https://github.com/your-id-2",
-    avatar: "",
-  },
-  {
-    name: "Member 3",
-    role: "Frontend Engineer",
-    github: "https://github.com/your-id-3",
-    avatar: "",
-  },
-  {
-    name: "Member 4",
+    name: "김나연",
     role: "Research / RAG",
-    github: "https://github.com/your-id-4",
-    avatar: "",
+    github: "https://github.com/annoyed",
+    avatar: "https://github.com/annoyed.png?size=240",
+  },
+  {
+    name: "변정희",
+    role: "Backend Engineer",
+    github: "https://github.com/teeli1",
+    avatar: "https://github.com/teeli1.png?size=240",
+  },
+  {
+    name: "조현희",
+    role: "Backend Engineer",
+    github: "https://github.com/paninicho",
+    avatar: "https://github.com/paninicho.png?size=240",
+  },
+  {
+    name: "편정혜",
+    role: "Frontend Engineer",
+    github: "https://github.com/rainyhye",
+    avatar: "https://github.com/rainyhye.png?size=240",
   },
 ];
 
