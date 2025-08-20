@@ -300,7 +300,7 @@ export default function Dashboard() {
           fileName !== "선택된 파일 없음" && fileName.includes(".")
             ? fileName.split(".").pop()
             : "py";
-        currentFileNameForProjectKey = `pasted-code.${extension}`;
+        currentFileNameForProjectKey = `default_project.${extension}`;
 
         console.log(`Posting JSON to: ${uploadUrl}`);
 
