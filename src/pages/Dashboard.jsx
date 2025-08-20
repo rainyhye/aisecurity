@@ -304,13 +304,13 @@ export default function Dashboard() {
 
         console.log(`Posting JSON to: ${uploadUrl}`);
 
+        const formData = new FormData();
+        formData.append("code", code);
+
         // fetch 요청을 JSON 형식으로 보냅니다.
         uploadResponse = await fetch(uploadUrl, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ code: code }), // 코드를 문자열 그대로 JSON에 담아 전송
+          body: formData, // 코드를 문자열 그대로 JSON에 담아 전송
         });
       } else if (isFileAvailable) {
         // ===== Case 2 & 3: 파일/디렉토리 업로드의 경우 (FormData로 전송) =====
