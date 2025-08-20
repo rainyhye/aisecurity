@@ -2,7 +2,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 
-const BANNER_IMG = ""; // 예: "/banner.png" (public 폴더에 이미지 넣으면 /banner.png로 접근 가능)
+const BANNER_IMG = ""; // 예: "/banner.png"
 
 const PIPELINE = [
   { label: "Upload / Paste", desc: "코드/프로젝트 업로드 또는 텍스트 입력" },
@@ -70,47 +70,59 @@ const TEAM = [
 
 export default function Introduction() {
   return (
-    <div className="space-y-12">
+    <div className="space-y-12 text-zinc-900 dark:text-zinc-100">
       {/* === Hero Banner === */}
       <section className="relative overflow-hidden rounded-3xl border border-zinc-200 dark:border-white/10">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 via-emerald-400/10 to-fuchsia-400/20 dark:from-indigo-500/30 dark:via-emerald-400/20 dark:to-fuchsia-400/30" />
+        {/* 배경 라이트 */}
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/15 via-emerald-400/10 to-fuchsia-400/15 dark:from-indigo-500/25 dark:via-emerald-400/15 dark:to-fuchsia-400/25" />
         <div className="absolute -top-24 -left-24 h-64 w-64 bg-indigo-400/30 blur-3xl rounded-full" />
         <div className="absolute -bottom-24 -right-24 h-64 w-64 bg-emerald-400/30 blur-3xl rounded-full" />
-        <div className="relative p-8 md:p-12 grid lg:grid-cols-2 gap-8 items-center bg-white/60 dark:bg-zinc-900/60 backdrop-blur">
+
+        {/* 내용 래퍼 + 대비용 살짝 어두운 오버레이 */}
+        <div className="relative p-8 md:p-12 grid lg:grid-cols-2 gap-8 items-center bg-white/60 dark:bg-zinc-900/65 backdrop-blur">
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 text-xs px-3 py-1 rounded-full border border-zinc-300 dark:border-white/10">
+            <div className="inline-flex items-center gap-2 text-xs px-3 py-1 rounded-full border border-zinc-300 dark:border-white/15 bg-white/70 dark:bg-white/5">
               <span className="font-semibold">Fo(u)rti</span>
               <span className="opacity-70">·</span>
               <span>AI Security Hackathon</span>
             </div>
-            <h1 className="text-3xl md:text-5xl font-extrabold">
-              Forti — 정적·동적 탐지 + RAG 가이드로
-              <br className="hidden md:block" /> 보안 이슈를 빠르게 “수정”까지
+
+            <h1 className="text-3xl md:text-5xl font-extrabold leading-tight tracking-tight text-zinc-900 dark:text-white">
+              <span className="bg-gradient-to-r from-emerald-300 via-cyan-200 to-indigo-300 bg-clip-text text-transparent">
+                Forti
+              </span>{" "}
+              — 정적·동적 탐지 + RAG 가이드로
+              <br className="hidden md:block" />
+              보안 이슈를 빠르게 “수정”까지
             </h1>
+
             <p className="text-zinc-700 dark:text-zinc-300">
-              코드 업로드/붙여넣기 → 통합 탐지 → 우선순위 산정 →
+              코드 업로드/붙여넣기 → 통합 탐지 → 우선순위 산정 →{" "}
               <span className="font-semibold">
-                {" "}
                 RAG 기반 Secure Coding Guide
               </span>{" "}
               생성. 개발자가 바로 반영할 수 있는 수정 예시와 체크리스트를
               제공합니다.
             </p>
+
             <div className="flex flex-wrap gap-3">
               <Link
                 to="/app"
-                className="px-5 py-2 rounded-xl bg-black text-white dark:bg-white dark:text-black"
+                className="px-5 py-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-100"
               >
                 시작하기
               </Link>
-              <Link to="/app/method" className="px-5 py-2 rounded-xl border">
+              <Link
+                to="/app/method"
+                className="px-5 py-2 rounded-xl border border-zinc-300 hover:bg-zinc-50 dark:border-white/15 dark:bg-white/5 dark:hover:bg-white/10"
+              >
                 분석 방법 보기
               </Link>
               <a
                 href="https://github.com/rainyhye/aisecurity"
                 target="_blank"
                 rel="noreferrer"
-                className="px-5 py-2 rounded-xl border"
+                className="px-5 py-2 rounded-xl border border-zinc-300 hover:bg-zinc-50 dark:border-white/15 dark:bg-white/5 dark:hover:bg-white/10"
               >
                 GitHub
               </a>
@@ -119,21 +131,23 @@ export default function Introduction() {
 
           {/* 배너 이미지 (선택) */}
           <div className="relative">
-            <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-zinc-800/40 aspect-video grid place-items-center overflow-hidden">
+            <div className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-zinc-900/60 aspect-video grid place-items-center overflow-hidden">
               {BANNER_IMG ? (
                 <img
                   src={BANNER_IMG}
                   alt="Forti banner"
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover opacity-95"
                 />
               ) : (
-                <div className="text-sm text-zinc-500 p-6 text-center">
+                <div className="text-sm text-zinc-600 dark:text-zinc-400 p-6 text-center">
                   배너 이미지를 넣으려면 <code>BANNER_IMG</code>에 경로를
                   지정하세요.
                   <br /> (예: <code>public/banner.png</code> →{" "}
-                  <code>\"/banner.png\"</code>)
+                  <code>"/banner.png"</code>)
                 </div>
               )}
+              {/* 읽기성 향상 오버레이 */}
+              <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-transparent via-black/10 to-black/20 dark:via-black/25 dark:to-black/35" />
             </div>
           </div>
         </div>
@@ -141,11 +155,13 @@ export default function Introduction() {
 
       {/* 1) Forti 란? */}
       <section className="rounded-3xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900 p-6 md:p-8">
-        <h2 className="text-3xl md:text-4xl font-bold">Forti 란?</h2>
+        <h2 className="text-3xl md:text-4xl font-bold text-zinc-900 dark:text-white">
+          Forti 란?
+        </h2>
         <p className="mt-3 text-zinc-600 dark:text-zinc-300 leading-relaxed">
           <strong>Forti</strong>는 코드 보안 점검을 위한
           <span className="mx-1 font-semibold">정적 + 동적</span> 솔루션을 한
-          번에 제공하고, 탐지 결과를
+          번에 제공하고, 탐지 결과를{" "}
           <span className="mx-1 font-semibold">
             RAG 기반 시큐어 코딩 가이드
           </span>
@@ -159,9 +175,11 @@ export default function Introduction() {
           {PIPELINE.map((s, i) => (
             <li
               key={s.label}
-              className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-zinc-800/50 p-4"
+              className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-zinc-800/60 p-4"
             >
-              <div className="text-xs text-zinc-500">Step {i + 1}</div>
+              <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                Step {i + 1}
+              </div>
               <div className="mt-1 font-semibold">{s.label}</div>
               <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
                 {s.desc}
@@ -173,7 +191,7 @@ export default function Introduction() {
         <div className="mt-6">
           <Link
             to="/app"
-            className="inline-block px-5 py-2 rounded-xl bg-black text-white dark:bg-white dark:text-black"
+            className="inline-block px-5 py-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-100"
           >
             시작하기
           </Link>
@@ -182,7 +200,7 @@ export default function Introduction() {
 
       {/* 2) 다른 시큐어코딩 솔루션과의 차이점 */}
       <section className="space-y-4">
-        <h3 className="text-2xl font-semibold">
+        <h3 className="text-2xl font-semibold text-zinc-900 dark:text-white">
           다른 시큐어코딩 솔루션과의 차이점
         </h3>
         <div className="grid md:grid-cols-2 gap-4">
@@ -202,7 +220,9 @@ export default function Introduction() {
 
       {/* 3) 지원 언어 (미정 → 임의 리스트) */}
       <section className="rounded-3xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900 p-6 md:p-8">
-        <h3 className="text-2xl font-semibold">지원 언어 (초안)</h3>
+        <h3 className="text-2xl font-semibold text-zinc-900 dark:text-white">
+          지원 언어 (초안)
+        </h3>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
           실제 지원 범위는 탐지 엔진/샘플 규칙 세트에 따라 조정될 수 있습니다.
         </p>
@@ -210,7 +230,7 @@ export default function Introduction() {
           {LANGUAGES.map((lang) => (
             <span
               key={lang}
-              className="text-sm px-3 py-1 rounded-full border border-zinc-300 dark:border-white/20 bg-zinc-50 dark:bg-zinc-800/50"
+              className="text-sm px-3 py-1 rounded-full border border-zinc-300 dark:border-white/20 bg-zinc-50 dark:bg-zinc-800/60"
             >
               {lang}
             </span>
@@ -221,14 +241,14 @@ export default function Introduction() {
       {/* 4) About us */}
       <section id="about" className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h3 className="text-2xl font-semibold">
+          <h3 className="text-2xl font-semibold text-zinc-900 dark:text-white">
             About us — <span className="font-extrabold">Fo(u)rti</span>
           </h3>
           <a
             href="https://github.com/rainyhye/aisecurity"
             target="_blank"
             rel="noreferrer"
-            className="text-sm px-3 py-2 rounded-xl border border-zinc-300 dark:border-white/20"
+            className="text-sm px-3 py-2 rounded-xl border border-zinc-300 hover:bg-zinc-50 dark:border-white/15 dark:bg-white/5 dark:hover:bg-white/10"
           >
             프로젝트 GitHub
           </a>
@@ -240,7 +260,6 @@ export default function Introduction() {
               key={m.name}
               className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900 p-5 flex flex-col items-center text-center gap-3"
             >
-              {/* 아바타/사진 자리 */}
               {m.avatar ? (
                 <img
                   src={m.avatar}
@@ -254,13 +273,15 @@ export default function Introduction() {
               )}
               <div>
                 <div className="font-medium">{m.name}</div>
-                <div className="text-sm text-zinc-500">{m.role}</div>
+                <div className="text-sm text-zinc-500 dark:text-zinc-400">
+                  {m.role}
+                </div>
               </div>
               <a
                 href={m.github}
                 target="_blank"
                 rel="noreferrer"
-                className="text-sm px-3 py-1 rounded-lg border border-zinc-300 dark:border-white/20"
+                className="text-sm px-3 py-1 rounded-lg border border-zinc-300 hover:bg-zinc-50 dark:border-white/15 dark:bg-white/5 dark:hover:bg-white/10"
               >
                 GitHub
               </a>
