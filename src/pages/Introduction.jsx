@@ -45,8 +45,8 @@ const TEAM = [
   {
     name: "김나연",
     role: "Research / RAG",
-    github: "https://github.com/annoyed",
-    avatar: "https://github.com/annoyed.png?size=240",
+    github: "https://github.com/annoeyed",
+    avatar: "https://github.com/annoeyed.png?size=240",
   },
   {
     name: "변정희",

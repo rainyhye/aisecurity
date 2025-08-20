@@ -4,7 +4,7 @@
 const adapters = [];
 
 /* =========================
- *  Public API
+ * Public API
  * ========================= */
 export function registerAdapter(fn) {
   adapters.push(fn);
@@ -48,22 +48,20 @@ export function parseUnifiedReport(
     }
   }
 
-  // 2) 아무것도 못 얻었으면
+  // 2) 어댑터가 아무것도 못 얻었으면 휴리스틱 파서 시도
   if (!findings.length) {
     const { items, coverage } = heuristicParse(raw);
     findings = items;
     used = coverage;
   }
 
-  // 3) 정적 합치기 + 동적 증거 연관
+  // 3) 결과 정리 및 계산
   const statics = findings.filter((f) => f.type === "STATIC");
   const dynamics = findings.filter((f) => f.type === "DYNAMIC");
-
   const mergedStatic = mergeStatic ? coalesceFindings(statics) : statics;
   const { attachedStatic, dynamicOrphans } = correlateDynamic
     ? correlateDynamicEvidence(mergedStatic, dynamics)
     : { attachedStatic: mergedStatic, dynamicOrphans: dynamics };
-
   const finalFindings = [...attachedStatic, ...dynamicOrphans];
   const counts = computeCounts(finalFindings);
 
@@ -72,32 +70,40 @@ export function parseUnifiedReport(
     counts,
     findings: finalFindings,
     meta: {
-      sourceHint: used, // 어떤 경로/필드를 사용했는지 기록(디버깅용)
+      sourceHint: used,
       generatedAt:
         pick(raw, ["meta.generated_at", "generated_at", "timestamp"]) || null,
       project: pick(raw, ["meta.project", "project", "repo"]) || null,
     },
-    warnings: finalFindings.length
-      ? []
-      : ["No findings were recognized by adapters or heuristics."],
+    warnings: finalFindings.length ? [] : ["No findings were recognized."],
   };
 }
 
 /* =========================
- *  Built-in adapters (Semgrep / Bandit / Pytest)
+ * Built-in adapters (Semgrep / Bandit / Pytest)
  * ========================= */
 registerAdapter(function semgrepAdapter(raw) {
+  // 더 많은 경로를 탐색하여 Semgrep 데이터를 찾습니다.
   const items =
     get(raw, "static.semgrep.items") ||
     get(raw, "semgrep.items") ||
-    get(raw, "semgrep");
-  if (!Array.isArray(items) || !items.length) return { ok: false, items: [] };
+    get(raw, "semgrep") ||
+    get(raw, "findings");
+  // Semgrep 결과인지 확인하기 위해 rule_id 존재 여부 체크
+  if (
+    !Array.isArray(items) ||
+    !items.length ||
+    !items.some((it) => it.rule_id && it.rule_id.includes("."))
+  )
+    return { ok: false, items: [] };
 
   const out = items.map((it, idx) => ({
     id: `semgrep:${it.rule_id || idx}:${it.file || it.path || ""}:${
       it.line ?? it.start_line ?? ""
     }`,
-    title: it.title || it.message || it.rule_id || "Semgrep finding",
+    // 유용한 message를 제목으로 우선 사용합니다.
+    title:
+      it.message || last((it.rule_id || "").split(".")) || "Semgrep finding",
     severity: mapSeverity(it.severity),
     type: "STATIC",
     file: it.file || it.path || "",
@@ -117,7 +123,6 @@ registerAdapter(function semgrepAdapter(raw) {
       message: it.message || "",
     },
   }));
-
   return { ok: true, items: out, usedPaths: ["static.semgrep.items"] };
 });
 
@@ -132,8 +137,10 @@ registerAdapter(function banditAdapter(raw) {
     id: `bandit:${it.rule_id || it.test_id || idx}:${
       it.file || it.path || ""
     }:${it.line ?? ""}`,
-    title:
-      it.title || it.text || it.test_name || it.rule_id || "Bandit finding",
+    title: (it.title || it.test_name || it.rule_id || "Bandit finding").replace(
+      /_/g,
+      " "
+    ),
     severity: mapSeverity(it.severity || it.issue_severity),
     type: "STATIC",
     file: it.file || it.filename || it.path || "",
@@ -146,7 +153,6 @@ registerAdapter(function banditAdapter(raw) {
     ruleIds: [it.rule_id || it.test_id || ""].filter(Boolean),
     extra: { code: it.code || "", message: it.message || it.issue_text || "" },
   }));
-
   return { ok: true, items: out, usedPaths: ["static.bandit.items"] };
 });
 
@@ -180,24 +186,21 @@ registerAdapter(function pytestAdapter(raw) {
       },
     };
   });
-
   return { ok: true, items: out, usedPaths: ["dynamic.pytest.failures"] };
 });
 
 /* =========================
- *  Heuristic fallback
+ * Heuristic fallback
  * ========================= */
 function heuristicParse(raw) {
   const coverage = [];
   const items = [];
 
-  // 1) 최상위가 배열이면 거기서 시도
   if (Array.isArray(raw)) {
     coverage.push("$");
     items.push(...raw.flatMap((obj) => mapGenericItem(obj)));
   }
 
-  // 2) 깊이 탐색: 객체 내에서 "객체 배열"들을 찾아 후보로 파싱
   const arrays = findObjectArrays(raw);
   for (const { path, arr } of arrays) {
     const mapped = arr.flatMap((obj) => mapGenericItem(obj));
@@ -207,7 +210,6 @@ function heuristicParse(raw) {
     }
   }
 
-  // 중복 제거(같은 id 방지)
   const byId = new Map();
   for (const it of items) {
     const id = it.id || `${it.file}:${it.lineStart}:${it.title}`;
@@ -220,7 +222,6 @@ function heuristicParse(raw) {
 function findObjectArrays(obj, path = "$", acc = []) {
   if (!obj || typeof obj !== "object") return acc;
   if (Array.isArray(obj)) {
-    // 배열 내 원소가 객체인 경우만 후보
     if (obj.some((v) => v && typeof v === "object" && !Array.isArray(v))) {
       acc.push({ path, arr: obj });
     }
@@ -240,7 +241,6 @@ function findObjectArrays(obj, path = "$", acc = []) {
   return acc;
 }
 
-/** 스키마를 모르는 개별 객체를 "가능한 한" 표준 Finding으로 매핑 */
 function mapGenericItem(it) {
   if (!it || typeof it !== "object") return [];
 
@@ -264,7 +264,6 @@ function mapGenericItem(it) {
     it.lineEnd,
     ls
   );
-
   const sevRaw = firstNonNull(
     it.severity,
     it.level,
@@ -275,21 +274,25 @@ function mapGenericItem(it) {
     it.cvss_score,
     it.score
   );
-  const title = firstNonNull(
-    it.title,
+
+  let title = firstNonNull(
     it.message,
+    it.title,
     it.rule,
     it.name,
     it.issue_text,
     it.test_name,
     "Finding"
   );
+
+  if (String(title).startsWith("http")) {
+    title = firstNonNull(it.rule_id, it.name, it.issue_text, title);
+  }
+
   const ruleId = firstNonNull(it.rule_id, it.ruleId, it.test_id, it.code, "");
   const cwe = normalizeCwe(
     firstNonNull(get(it, "cwe.id"), it.cwe, get(it, "taxonomies.cwe"), "")
   );
-
-  // 동적 흔적?
   const looksDynamic = !!(
     it.nodeid ||
     it.traceback ||
@@ -335,12 +338,11 @@ function mapGenericItem(it) {
 }
 
 /* =========================
- *  Merge & Correlate
+ * Merge & Correlate
  * ========================= */
-
 function coalesceFindings(items) {
   const rank = { Critical: 3, High: 2, Medium: 1, Low: 0 };
-  const buckets = new Map(); // key = file|CWE|titleBase
+  const buckets = new Map();
 
   const keyOf = (f) => {
     const file = normPath(f.file);
@@ -357,13 +359,11 @@ function coalesceFindings(items) {
     const key = keyOf(f);
     if (!buckets.has(key)) buckets.set(key, []);
     const arr = buckets.get(key);
-
     const mate = arr.find((g) => isCloseLine(f.lineStart, g.lineStart, 2));
     if (!mate) {
       arr.push({ ...f, tools: uniq(f.tools), ruleIds: uniq(f.ruleIds) });
       continue;
     }
-    // merge
     mate.severity =
       rank[f.severity] > rank[mate.severity] ? f.severity : mate.severity;
     mate.cvss = Math.max(num(mate.cvss) ?? 0, num(f.cvss) ?? 0);
@@ -392,11 +392,9 @@ function correlateDynamicEvidence(staticItems, dynItems) {
   for (const d of dynItems) {
     const dynCwe = inferCweFromText(`${d.title} ${d.extra?.message || ""}`);
     const tbPath = pickAppPath(d.extra?.traceback);
-
     let best = null,
       bestScore = 0;
 
-    // (a) 파일/라인 근접 우선
     if (tbPath && byFile.has(tbPath)) {
       for (const s of byFile.get(tbPath)) {
         const score =
@@ -408,7 +406,6 @@ function correlateDynamicEvidence(staticItems, dynItems) {
         }
       }
     }
-    // (b) CWE 백업 매칭
     if (!best && dynCwe) {
       for (const s of staticItems) {
         const score = cweScore(s.cwe, dynCwe);
@@ -437,9 +434,8 @@ function correlateDynamicEvidence(staticItems, dynItems) {
 }
 
 /* =========================
- *  Utilities
+ * Utilities
  * ========================= */
-
 function deriveRunId(raw) {
   const p = pick(raw, ["meta.project", "project", "repo"]) || "project";
   const t =
@@ -478,11 +474,24 @@ function mapSeverity(s) {
 
 function normalizeCwe(cwe) {
   if (!cwe) return "";
-  const str = String(cwe);
+
+  let cweData = cwe;
+
+  // CWE가 배열인 경우, 첫 번째 요소를 사용합니다.
+  if (Array.isArray(cwe) && cwe.length > 0) {
+    cweData = cwe[0];
+  }
+
+  // 이제 cweData는 객체이거나 다른 값입니다. 이전 로직을 적용합니다.
+  const str =
+    typeof cweData === "object" && cweData !== null && cweData.id
+      ? String(cweData.id)
+      : String(cweData);
+
   const m = str.match(/CWE-\d+/i);
   if (m) return m[0].toUpperCase();
   if (/^\d+$/.test(str)) return `CWE-${str}`;
-  return str;
+  return str.split(":")[0];
 }
 
 function inferDynamicSeverity(f) {

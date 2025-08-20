@@ -1,9 +1,11 @@
 // Dashboard.jsx
 // npm i recharts
 // npm i @monaco-editor/react
-
+import { toProjectKey } from "../lib/analysisPaths";
+import { parseUnifiedFromUrl } from "../lib/unifiedParser";
 import React, { useMemo, useEffect, useState } from "react";
 import Editor from "@monaco-editor/react";
+
 import {
   PieChart,
   Pie,
@@ -17,10 +19,10 @@ import {
   YAxis,
   CartesianGrid,
 } from "recharts";
-import {
-  parseUnifiedFromUrl,
-  parseUnifiedFromFile,
-} from "../lib/unifiedParser";
+
+// 새로 추가/변경된 import 항목들
+import { fetchUnifiedJSON } from "../lib/api";
+import { parseUnifiedReport } from "../lib/unifiedParser";
 
 // -------------------- 샘플 데이터 --------------------
 const SAMPLE = {
@@ -146,7 +148,6 @@ export default function Dashboard() {
   const [fileObj, setFileObj] = useState(null);
   const [code, setCode] = useState("");
   const [result, setResult] = useState(null);
-  const [pieMode, setPieMode] = useState("severity"); // 'severity' | 'type'
   const [guides, setGuides] = useState(null);
   const [isGuiding, setIsGuiding] = useState(false);
 
@@ -174,11 +175,9 @@ export default function Dashboard() {
 
   // 차트 데이터 (파이)
   const pieData = useMemo(() => {
-    if (!result) return [];
-    const src =
-      pieMode === "severity" ? result.counts.bySeverity : result.counts.byType;
-    return Object.entries(src).map(([name, value]) => ({ name, value }));
-  }, [result, pieMode]);
+    const severities = result?.counts?.bySeverity || {};
+    return Object.entries(severities).map(([name, value]) => ({ name, value }));
+  }, [result]);
 
   const COLORS = [
     "#EF4444",
@@ -190,12 +189,6 @@ export default function Dashboard() {
   ];
 
   // 상단 요약
-  const avgCvss = useMemo(() => {
-    if (!result?.findings?.length) return 0;
-    const s = result.findings.reduce((acc, f) => acc + (f.cvss || 0), 0);
-    return (s / result.findings.length).toFixed(1);
-  }, [result]);
-
   const toolCount = useMemo(() => {
     if (!result?.findings?.length) return 0;
     const set = new Set();
@@ -211,7 +204,8 @@ export default function Dashboard() {
     if (!result?.findings) return [];
     const map = {};
     result.findings.forEach((f) => {
-      const key = f.cwe || f.ruleIds?.[0] || f.type; // CWE > Rule > STATIC/DYNAMIC
+      // [수정] CWE가 없으면 모두 '기타 (Etc)'로 그룹화합니다.
+      const key = f.cwe || "기타 (Etc)";
       if (!map[key])
         map[key] = { type: key, Critical: 0, High: 0, Medium: 0, Low: 0 };
       map[key][f.severity] = (map[key][f.severity] || 0) + 1;
@@ -223,7 +217,7 @@ export default function Dashboard() {
 
   // 중요도 높은 항목 리스트
   const highSeverity = useMemo(() => {
-    if (!result) return [];
+    if (!result?.findings) return [];
     return [...result.findings]
       .sort(
         (a, b) =>
@@ -262,37 +256,110 @@ export default function Dashboard() {
     setFileObj(f);
     setFileName(f.name);
   }
-  //fetch -> res.json() -> normalizeUnified(...) 부분 교체
-  async function handleAnalyze() {
-    setIsAnalyzing(true);
-    try {
-      const url = import.meta.env.VITE_UNIFIED_URL || "/api/unified";
-      const normalized = await parseUnifiedFromUrl(url);
-
-      setResult(normalized);
-      localStorage.setItem("forti:last-run", JSON.stringify(normalized));
-      setGuides(null);
-      setPatched("");
-      saveRun(normalized);
-    } catch (e) {
-      console.error(e);
-      alert("분석 결과(JSON) 불러오기에 실패했어요. 콘솔을 확인해 주세요.");
-    } finally {
-      setIsAnalyzing(false);
-    }
-  }
 
   function saveRun(run) {
+    if (!run) return;
     const at = Date.now();
-    const id = `${run.runId || "run"}-${at}`; // ← 고유 ID
-    const entry = { id, at, counts: run.counts };
+    const id = `${run.runId || "run"}-${at}`;
+    const entry = { id, at, counts: run.counts || {} };
     const arr = [
       entry,
       ...JSON.parse(localStorage.getItem("forti:runs") || "[]"),
     ].slice(0, 20);
     localStorage.setItem("forti:runs", JSON.stringify(arr));
-    localStorage.setItem(`forti:run:${id}`, JSON.stringify(run)); // ← 저장 키도 고유
+    localStorage.setItem(`forti:run:${id}`, JSON.stringify(run));
     setRuns(arr);
+  }
+
+  // [수정] 새로운 분석 요청 흐름을 반영한 handleAnalyze 함수
+  // Dashboard.jsx 파일의 handleAnalyze 함수를 아래 코드로 교체하세요.
+
+  // Dashboard.jsx 파일의 handleAnalyze 함수를 아래 코드로 교체하세요.
+  async function handleAnalyze() {
+    const isCodeAvailable = code.trim();
+    const isFileAvailable = fileObj;
+
+    if (!isCodeAvailable && !isFileAvailable) {
+      alert("분석할 파일을 업로드하거나 코드를 입력해주세요.");
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setResult(null);
+
+    try {
+      const API_BASE = import.meta.env.VITE_API_BASE || "";
+      let currentFileNameForProjectKey = "";
+      let uploadResponse;
+
+      if (!isFileAvailable && isCodeAvailable) {
+        // ===== Case 1: 코드 입력의 경우 (JSON으로 전송) =====
+        const uploadUrl = `${API_BASE}/upload/code`;
+
+        const extension =
+          fileName !== "선택된 파일 없음" && fileName.includes(".")
+            ? fileName.split(".").pop()
+            : "py";
+        currentFileNameForProjectKey = `pasted-code.${extension}`;
+
+        console.log(`Posting JSON to: ${uploadUrl}`);
+
+        // fetch 요청을 JSON 형식으로 보냅니다.
+        uploadResponse = await fetch(uploadUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ code: code }), // 코드를 문자열 그대로 JSON에 담아 전송
+        });
+      } else if (isFileAvailable) {
+        // ===== Case 2 & 3: 파일/디렉토리 업로드의 경우 (FormData로 전송) =====
+        let uploadUrl = "";
+        const formData = new FormData();
+
+        if (fileObj.name.toLowerCase().endsWith(".zip")) {
+          uploadUrl = `${API_BASE}/upload/dir`;
+        } else {
+          uploadUrl = `${API_BASE}/upload/file`;
+        }
+        formData.append("file", fileObj, fileObj.name);
+        currentFileNameForProjectKey = fileObj.name;
+
+        console.log(`Uploading FormData to: ${uploadUrl}`);
+        uploadResponse = await fetch(uploadUrl, {
+          method: "POST",
+          body: formData,
+        });
+      }
+
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        throw new Error(
+          `파일 업로드 실패: ${uploadResponse.status} - ${errorText}`
+        );
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      const projectKey = toProjectKey(currentFileNameForProjectKey);
+      const resultUrl = `${API_BASE}/analysis/${projectKey}/report`;
+      const finalUrlWithCacheBust = `${resultUrl}?cacheBust=${new Date().getTime()}`;
+
+      console.log("요청하는 최종 결과 URL:", finalUrlWithCacheBust);
+
+      const analysisResult = await parseUnifiedFromUrl(finalUrlWithCacheBust);
+
+      setResult(analysisResult);
+      localStorage.setItem("forti:last-run", JSON.stringify(analysisResult));
+      setGuides(null);
+      setPatched("");
+      saveRun(analysisResult);
+    } catch (e) {
+      console.error("분석 프로세스 실패:", e);
+      alert(`분석을 실행하는 데 실패했습니다: ${e.message}`);
+    } finally {
+      setIsAnalyzing(false);
+    }
   }
 
   function loadSample() {
@@ -334,11 +401,6 @@ export default function Dashboard() {
         )
         .slice(0, 4)
         .map((f) => f.id);
-
-      // TODO: 실제 가이드라인 API 호출
-      // const res = await fetch("/api/guidelines", { ... });
-      // const json = await res.json();
-      // setGuides(json);
 
       const demo = buildSampleGuides(result, selection);
       setGuides(demo);
@@ -459,13 +521,12 @@ export default function Dashboard() {
       </div>
 
       {/* 요약 카드 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <StatCard label="총 취약점" value={totalFindings || "—"} />
         <StatCard
           label="Critical"
           value={result?.counts?.bySeverity?.Critical ?? "—"}
         />
-        <StatCard label="평균 CVSS" value={result ? avgCvss : "—"} />
         <StatCard label="사용 도구 수" value={result ? toolCount : "—"} />
       </div>
 
@@ -612,34 +673,13 @@ export default function Dashboard() {
               <h3 className="font-semibold text-zinc-900 dark:text-white">
                 탐지된 취약점 수
               </h3>
-              <span className="text-sm text-zinc-500">
-                {pieMode === "severity" ? "중요도 기준" : "종류 기준"}
-              </span>
+              <span className="text-sm text-zinc-500">중요도 기준</span>
             </div>
             <div className="text-2xl font-extrabold mb-3">
               {totalFindings} 개
             </div>
 
-            <div className="mb-3 flex gap-2">
-              <button
-                onClick={() => setPieMode("severity")}
-                className={`px-3 py-1 rounded-lg text-sm border ${
-                  pieMode === "severity" ? "bg-zinc-100 dark:bg-zinc-800" : ""
-                }`}
-              >
-                중요도
-              </button>
-              <button
-                onClick={() => setPieMode("type")}
-                className={`px-3 py-1 rounded-lg text-sm border ${
-                  pieMode === "type" ? "bg-zinc-100 dark:bg-zinc-800" : ""
-                }`}
-              >
-                종류
-              </button>
-            </div>
-
-            <div className="h-56">
+            <div className="h-56 mt-12">
               {pieData.length ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -1019,6 +1059,7 @@ function guessLanguage(filename) {
     cs: "csharp",
     cpp: "cpp",
     c: "c",
+
     css: "css",
     scss: "scss",
     html: "html",

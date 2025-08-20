@@ -8,9 +8,14 @@ export default function Findings() {
   const [sev, setSev] = useState("all");
 
   useEffect(() => {
-    // 대시보드에서 저장한 최근 실행 결과 불러오기
     const last = localStorage.getItem("forti:last-run");
-    if (last) setData(JSON.parse(last));
+    if (last) {
+      try {
+        setData(JSON.parse(last));
+      } catch (e) {
+        console.error("Failed to parse last run from localStorage", e);
+      }
+    }
   }, []);
 
   const rows = useMemo(() => {
@@ -22,7 +27,10 @@ export default function Findings() {
           !q ||
           (f.title + f.type + f.file).toLowerCase().includes(q.toLowerCase())
       )
-      .sort((a, b) => ORDER[b.severity] - ORDER[a.severity] || b.cvss - a.cvss);
+      .sort(
+        (a, b) =>
+          ORDER[b.severity] - ORDER[a.severity] || (b.cvss || 0) - (a.cvss || 0)
+      );
   }, [data, q, sev]);
 
   function handleDownloadAll() {
@@ -37,6 +45,7 @@ export default function Findings() {
     a.click();
     URL.revokeObjectURL(url);
   }
+
   return (
     <div>
       <h2 className="text-2xl font-bold mb-4">탐지된 취약점 전체 보기</h2>
@@ -46,7 +55,7 @@ export default function Findings() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           className="px-3 py-2 rounded-xl border bg-white dark:bg-zinc-900"
-          placeholder="검색 (제목/유형/파일)"
+          placeholder="검색 (제목/파일)"
         />
         <select
           value={sev}
@@ -72,10 +81,8 @@ export default function Findings() {
             <tr>
               <th className="text-left p-3">중요도</th>
               <th className="text-left p-3">제목</th>
-              <th className="text-left p-3">유형</th>
-              <th className="text-left p-3">파일</th>
+              <th className="text-left p-3">파일:라인</th>
               <th className="text-left p-3">CWE</th>
-              <th className="text-left p-3">CVSS</th>
             </tr>
           </thead>
           <tbody>
@@ -94,17 +101,18 @@ export default function Findings() {
                   </span>
                 </td>
                 <td className="p-3">{f.title}</td>
-                <td className="p-3">{f.type}</td>
                 <td className="p-3">
-                  {f.file}:{f.lineStart}-{f.lineEnd}
+                  {/* [수정] 파일 정보가 없으면 N/A 표시 */}
+                  {f.file && f.lineStart
+                    ? `${f.file}:${f.lineStart}-${f.lineEnd}`
+                    : "N/A"}
                 </td>
                 <td className="p-3">{f.cwe}</td>
-                <td className="p-3">{f.cvss}</td>
               </tr>
             ))}
             {!rows.length && (
               <tr>
-                <td className="p-6 text-center text-zinc-500" colSpan={6}>
+                <td className="p-6 text-center text-zinc-500" colSpan={4}>
                   데이터가 없습니다. 대시보드에서 분석을 실행해주세요.
                 </td>
               </tr>
