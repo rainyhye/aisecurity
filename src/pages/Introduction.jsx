@@ -2,7 +2,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 
-const BANNER_IMG = ""; // 예: "/banner.png"
+const BANNER_IMG = "/forti-banner.png"; // 예: "/banner.png"
 
 const PIPELINE = [
   { label: "Upload / Paste", desc: "코드/프로젝트 업로드 또는 텍스트 입력" },

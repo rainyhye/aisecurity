@@ -5,7 +5,7 @@ import { toProjectKey } from "../lib/analysisPaths";
 import { parseUnifiedFromUrl } from "../lib/unifiedParser";
 import React, { useMemo, useEffect, useState } from "react";
 import Editor from "@monaco-editor/react";
-import { fetchSecureCode } from "../lib/api";
+import { fetchSecureCodeGuide } from "../lib/api";
 
 import {
   PieChart,
@@ -21,18 +21,16 @@ import {
   CartesianGrid,
 } from "recharts";
 
+// 새로 추가/변경된 import 항목들
+import { fetchUnifiedJSON } from "../lib/api";
+import { parseUnifiedReport } from "../lib/unifiedParser";
+
 // -------------------- 샘플 데이터 --------------------
-const PIE_ORDER = ["High", "Medium", "Low"]; // ← 순서 변경
-const PIE_COLORS = {
-  High: "#ef4444", // 빨강
-  Medium: "#f97316", // 주황
-  Low: "#facc15", // 노랑
-};
 const SAMPLE = {
   runId: "sample-001",
   counts: {
     total: 17,
-    bySeverity: { High: 5, Medium: 6, Low: 4 },
+    bySeverity: { Critical: 2, High: 5, Medium: 6, Low: 4 },
     byType: {
       "SQL Injection": 4,
       XSS: 3,
@@ -58,7 +56,7 @@ const SAMPLE = {
     {
       id: "F-002",
       title: "Hardcoded API key detected",
-      severity: "High",
+      severity: "Critical",
       type: "Hardcoded Secret",
       file: "src/config.js",
       lineStart: 10,
@@ -123,7 +121,7 @@ const SAMPLE = {
   ],
 };
 
-const SEVERITY_ORDER = { High: 3, Medium: 2, Low: 1 };
+const SEVERITY_ORDER = { Critical: 4, High: 3, Medium: 2, Low: 1 };
 
 // 간단 가이드 맵(데모용)
 const FIX_TIPS = {
@@ -156,7 +154,6 @@ export default function Dashboard() {
 
   const [patched, setPatched] = useState("");
   const [isPatching, setIsPatching] = useState(false);
-  const [projectKeyState, setProjectKeyState] = useState("");
 
   // 다크모드 감지 → Monaco 테마 연동
   const [isDark, setIsDark] = useState(getIsDark());
@@ -179,10 +176,8 @@ export default function Dashboard() {
 
   // 차트 데이터 (파이)
   const pieData = useMemo(() => {
-    const sev = result?.counts?.bySeverity || {};
-    return PIE_ORDER.map((name) => ({ name, value: sev[name] || 0 })).filter(
-      (d) => d.value > 0
-    );
+    const severities = result?.counts?.bySeverity || {};
+    return Object.entries(severities).map(([name, value]) => ({ name, value }));
   }, [result]);
 
   const COLORS = [
@@ -212,11 +207,12 @@ export default function Dashboard() {
     result.findings.forEach((f) => {
       // [수정] CWE가 없으면 모두 '기타 (Etc)'로 그룹화합니다.
       const key = f.cwe || "기타 (Etc)";
-      if (!map[key]) map[key] = { type: key, High: 0, Medium: 0, Low: 0 };
+      if (!map[key])
+        map[key] = { type: key, Critical: 0, High: 0, Medium: 0, Low: 0 };
       map[key][f.severity] = (map[key][f.severity] || 0) + 1;
     });
     return Object.values(map).sort(
-      (a, b) => b.High + b.Medium - (a.High + a.Medium)
+      (a, b) => b.Critical + b.High - (a.Critical + a.High)
     );
   }, [result]);
 
@@ -229,7 +225,7 @@ export default function Dashboard() {
           SEVERITY_ORDER[b.severity] - SEVERITY_ORDER[a.severity] ||
           b.cvss - a.cvss
       )
-      .filter((f) => ["High"].includes(f.severity))
+      .filter((f) => ["Critical", "High"].includes(f.severity))
       .slice(0, 4);
   }, [result]);
   const AXIS = isDark ? "#e5e7eb" : "#374151";
@@ -279,6 +275,7 @@ export default function Dashboard() {
   // [수정] 새로운 분석 요청 흐름을 반영한 handleAnalyze 함수
   // Dashboard.jsx 파일의 handleAnalyze 함수를 아래 코드로 교체하세요.
 
+  // Dashboard.jsx 파일의 handleAnalyze 함수를 아래 코드로 교체하세요.
   async function handleAnalyze() {
     const isCodeAvailable = code.trim();
     const isFileAvailable = fileObj;
@@ -346,7 +343,6 @@ export default function Dashboard() {
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       const projectKey = toProjectKey(currentFileNameForProjectKey);
-      setProjectKeyState(projectKey);
       const resultUrl = `${API_BASE}/analysis/${projectKey}/report`;
       const finalUrlWithCacheBust = `${resultUrl}?cacheBust=${new Date().getTime()}`;
 
@@ -393,39 +389,20 @@ export default function Dashboard() {
     downloadBlob(blob, `forti-${runId}.${format}`);
   }
 
+  // ----- Secure Coding Guide -----
   async function handleGenerateGuides() {
     if (!result) return;
     setIsGuiding(true);
     try {
-      // 우선순위 높은 상위 4개 선택 (High→Medium→Low, CVSS 우선)
-      const selection = [...(result.findings || [])]
+      const selection = [...result.findings]
         .sort(
           (a, b) =>
             SEVERITY_ORDER[b.severity] - SEVERITY_ORDER[a.severity] ||
-            (b.cvss ?? 0) - (a.cvss ?? 0)
+            b.cvss - a.cvss
         )
         .slice(0, 4)
         .map((f) => f.id);
 
-      // (선택) 서버에 가이드 API가 있으면 먼저 시도
-      const API_BASE = import.meta.env.VITE_API_BASE || "";
-      if (projectKeyState) {
-        try {
-          const res = await fetch(
-            `${API_BASE}/analysis/${projectKeyState}/secure_guides`,
-            { cache: "no-store" }
-          );
-          if (res.ok) {
-            const j = await res.json();
-            setGuides(j);
-            return; // 서버 응답 사용
-          }
-        } catch (_) {
-          /* 서버 미구현/오류면 로컬 폴백으로 */
-        }
-      }
-
-      // 폴백: 로컬 데모 가이드 생성
       const demo = buildSampleGuides(result, selection);
       setGuides(demo);
     } finally {
@@ -433,42 +410,6 @@ export default function Dashboard() {
     }
   }
 
-  // ----- Secure Coding Guide -----
-  async function handleGeneratePatched() {
-    if (!result) return;
-    setIsPatching(true);
-    try {
-      // 1) 서버 패치 제안 시도
-      if (projectKeyState) {
-        const apiText = await fetchSecureCode(projectKeyState);
-        if (apiText && String(apiText).trim()) {
-          setPatched(String(apiText));
-          return; // 성공 시 끝
-        }
-      }
-
-      // 2) 백업: 로컬 휴리스틱 (서버 미구현/실패 시)
-      const src = await ensureSourceText(code, fileObj);
-      if (!src.trim()) {
-        setPatched(
-          "// 원본 코드가 없습니다. 파일 업로드 또는 코드 입력 후 다시 시도하세요."
-        );
-        return;
-      }
-      const patchedText = generatePatchedCode(src, result);
-      setPatched(patchedText || "// 변경할 부분을 찾지 못했습니다. (데모)");
-    } catch (e) {
-      console.error("secure_code 호출 실패:", e);
-      // 실패 시에도 백업 생성으로 넘어감
-      const src = await ensureSourceText(code, fileObj);
-      setPatched(
-        (src && generatePatchedCode(src, result)) ||
-          `// secure_code 호출 실패: ${e.message}`
-      );
-    } finally {
-      setIsPatching(false);
-    }
-  }
   function openGuidePdf() {
     if (guides?.pdfUrl) window.open(guides.pdfUrl, "_blank");
   }
@@ -490,6 +431,49 @@ export default function Dashboard() {
       return;
     }
     if (format === "pdf" && guides.pdfUrl) openGuidePdf();
+  }
+
+  // ----- Patched Code (휴리스틱) -----
+  async function handleGeneratePatched() {
+    if (!result) return;
+    setIsPatching(true);
+    try {
+      const src = await ensureSourceText(code, fileObj);
+      const patchedText = generatePatchedCode(src, result);
+      setPatched(patchedText);
+    } finally {
+      setIsPatching(false);
+    }
+  }
+
+  async function handleGeneratePatched() {
+    if (!result) {
+      alert("먼저 분석을 실행하세요.");
+      return;
+    }
+    // "패치 제안 생성" 버튼이 이제 가이드 생성 역할을 하므로 isGuiding 상태를 사용합니다.
+    setIsGuiding(true);
+    setGuides(null); // 이전 가이드 초기화
+
+    try {
+      // 분석 결과가 있을 때, 해당 파일 이름을 기반으로 projectKey를 생성합니다.
+      const projectKey = toProjectKey(
+        fileName || result?.meta?.project || "default-project"
+      );
+
+      console.log(`Requesting secure code guide for project: ${projectKey}`);
+
+      // 새로 만든 API 함수를 호출합니다.
+      const guideData = await fetchSecureCodeGuide(projectKey);
+
+      // API로부터 받은 데이터를 guides 상태에 저장합니다.
+      setGuides(guideData);
+    } catch (e) {
+      console.error("보안 코딩 가이드 생성 실패:", e);
+      alert(`가이드를 생성하는 데 실패했습니다: ${e.message}`);
+    } finally {
+      setIsGuiding(false); // 로딩 상태 종료
+    }
   }
 
   function downloadPatched() {
@@ -526,7 +510,7 @@ export default function Dashboard() {
             {runs.map((r, i) => (
               <option key={`${r.id}-${r.at ?? i}`} value={r.id}>
                 {new Date(r.at).toLocaleString()} • T{r.counts?.total ?? 0} / C
-                {r.counts?.bySeverity?.High ?? 0}
+                {r.counts?.bySeverity?.Critical ?? 0}
               </option>
             ))}
           </select>
@@ -553,8 +537,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <StatCard label="총 취약점" value={totalFindings || "—"} />
         <StatCard
-          label="High"
-          value={result?.counts?.bySeverity?.High ?? "—"}
+          label="Critical"
+          value={result?.counts?.bySeverity?.Critical ?? "—"}
         />
         <StatCard label="사용 도구 수" value={result ? toolCount : "—"} />
       </div>
@@ -612,7 +596,7 @@ export default function Dashboard() {
                 minimap: { enabled: false },
                 wordWrap: "on",
                 scrollBeyondLastLine: false,
-                //  패딩 & 좌측 여유
+                // 👇 패딩 & 좌측 여유
                 padding: { top: 12, bottom: 16 },
                 lineNumbersMinChars: 4,
                 glyphMargin: true,
@@ -718,8 +702,8 @@ export default function Dashboard() {
                       nameKey="name"
                       outerRadius={90}
                     >
-                      {pieData.map((d) => (
-                        <Cell key={d.name} fill={PIE_COLORS[d.name]} />
+                      {pieData.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip
@@ -731,12 +715,7 @@ export default function Dashboard() {
                       itemStyle={{ color: TIP_TX }}
                       labelStyle={{ color: TIP_TX }}
                     />
-                    <Legend
-                      verticalAlign="bottom"
-                      align="center"
-                      layout="horizontal"
-                      wrapperStyle={{ color: AXIS }}
-                    />
+                    <Legend wrapperStyle={{ color: AXIS }} />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
@@ -856,8 +835,8 @@ export default function Dashboard() {
                     />
                     <Legend wrapperStyle={{ color: AXIS }} />
                     {/* 눈에 잘 띄는 고정 팔레트 */}
-
-                    <Bar dataKey="High" stackId="a" fill="#ef4444" />
+                    <Bar dataKey="Critical" stackId="a" fill="#ef4444" />
+                    <Bar dataKey="High" stackId="a" fill="#f59e0b" />
                     <Bar dataKey="Medium" stackId="a" fill="#eab308" />
                     <Bar dataKey="Low" stackId="a" fill="#22c55e" />
                   </BarChart>
@@ -975,12 +954,14 @@ function StatCard({ label, value }) {
 
 function badgeColor(severity) {
   switch (severity) {
+    case "Critical":
+      return "border-red-500 text-red-600";
     case "High":
-      return "border-zinc-500 text-zinc-600";
-    case "Medium":
       return "border-orange-500 text-orange-600";
+    case "Medium":
+      return "border-yellow-500 text-yellow-600";
     default:
-      return "border-yellow-400 text-yellow-600";
+      return "border-zinc-400 text-zinc-600";
   }
 }
 

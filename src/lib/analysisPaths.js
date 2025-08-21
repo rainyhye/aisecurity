@@ -17,4 +17,5 @@ export function toProjectKey(filenameOrLabel) {
 export const API = {
   list: `${API_BASE}/analysis/list`,
   unified: `${API_BASE}/analysis/unified`,
+  secure_code: (projectKey) => `${API_BASE}/analysis/${projectKey}/secure_code`,
 };
